@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../overlay.dart';
 import 'navigator_observer.dart';
-import 'state_getter.dart';
 
 final _navToken = Object();
 

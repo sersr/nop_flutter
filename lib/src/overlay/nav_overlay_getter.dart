@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nop/event_queue.dart';
 
-import '../navigation/export.dart';
+import '../../nav.dart';
 import 'nav_overlay_mixin.dart';
 import 'overlay_observer.dart';
+import 'state_getter.dart';
 
 abstract class OverlayDelegate with StateAsyncGetter<OverlayState> {
   OverlayObserver? _overlayObserver;
