@@ -1,7 +1,7 @@
 name: nop_flutter
 description: 依赖注入，状态管理
 version: 0.0.1
-homepage:
+repository: https://github.com/sersr/nop_flutter
 
 environment:
   sdk: ">=2.16.0 <3.0.0"
@@ -11,13 +11,8 @@ dependencies:
   equatable: ^2.0.3
   flutter:
     sdk: flutter
-  nop:
-    git:
-      url: https://github.com/sersr/nop.git
-
-dependency_overrides:
-  nop: 
-    path: ../nop
+  nop: ^0.0.2+1
+  collection: ^1.15.0
 
 dev_dependencies:
   flutter_test:
