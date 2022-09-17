@@ -16,7 +16,7 @@ class NopPreInit extends StatefulWidget {
 
   final NopWidgetBuilder? builder;
   final List<NopWidgetBuilder>? builders;
-  final T Function<T>(Type t, BuildContext context, {bool shared}) init;
+  final dynamic Function(Type t, BuildContext context, {bool shared}) init;
   final Widget child;
   final List<Type> initTypes;
   final List<Type> initTypesUnique;
@@ -28,12 +28,20 @@ class NopPreInit extends StatefulWidget {
 class _NopPreInitState extends State<NopPreInit> {
   @override
   void initState() {
-    _init(widget.initTypesUnique, false);
-
-    _init(widget.initTypes, true);
-
     super.initState();
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initFirst) {
+      _initFirst = true;
+      _init(widget.initTypesUnique, false);
+      _init(widget.initTypes, true);
+    }
+  }
+
+  bool _initFirst = false;
 
   void _init(List<Type> types, bool shared) {
     for (var item in types) {

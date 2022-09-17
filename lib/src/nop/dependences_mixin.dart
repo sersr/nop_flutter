@@ -1,63 +1,66 @@
-import 'dart:async';
 import 'dart:collection';
 
-import 'package:flutter/material.dart';
 import 'package:nop/utils.dart';
 
 import '../navigation/navigator_observer.dart';
+import 'nop_dependencies.dart';
+import 'nop_listener.dart';
 
-/// [GetTypePointers] 本身不添加监听
+/// [GetTypePointers]
 mixin GetTypePointers {
   final _pointers = HashMap<Type, NopListener>();
+  Iterable<NopListener> get listeners => _pointers.values;
   GetTypePointers? get parent;
   GetTypePointers? get child;
 
   bool get isEmpty => _pointers.isEmpty;
 
-  NopListener getType<T>(BuildContext context, {bool shared = true}) {
-    return _getTypeArg(T, context, shared);
+  NopListener getType<T>({bool shared = true}) {
+    return _getTypeArg(T, shared);
   }
 
-  NopListener getTypeArg(Type t, BuildContext context, {bool shared = true}) {
-    return _getTypeArg(t, context, shared);
+  NopListener getTypeArg(Type t, {bool shared = true}) {
+    return _getTypeArg(t, shared);
   }
 
   /// shared == false, 不保存引用
-  NopListener _getTypeArg(Type t, BuildContext context, bool shared) {
+  NopListener _getTypeArg(Type t, bool shared) {
     t = getAlias(t);
     var listener = _findTypeArgSet(t);
-    listener ??= _createListenerArg(t, context, shared);
+    listener ??= _createListenerArg(t, shared);
     return listener;
   }
 
   NopListener? _findTypeArgSet(Type t) {
     var listener = _findCurrentTypeArg(t);
-    listener = _findTypeOtherElement(t);
+    listener ??= _findTypeOtherElement(t);
     if (listener != null && !_pointers.containsKey(t)) {
-      _pointers[t] = listener;
+      assert(Log.w('sharedxx, create: $t'));
+      addListener(t, listener);
     }
 
     return listener;
   }
 
-  NopListener createListenerArg(Type t, BuildContext context,
-      {bool shared = true}) {
+  NopListener createListenerArg(Type t, {bool shared = true}) {
     t = getAlias(t);
 
-    return _createListenerArg(t, context, shared);
+    return _createListenerArg(t, shared);
   }
 
-  NopListener _createListenerArg(Type t, BuildContext context, bool shared) {
-    var listener = createArg(t, context);
-    assert(!_pointers.containsKey(t));
+  NopListener _createListenerArg(Type t, bool shared) {
+    var listener = createArg(t, shared: shared);
+
+    assert(!_pointers.containsKey(t), t);
+
     assert(Log.w('shared: $shared, create: $t'));
-    if (shared) _pointers[t] = listener; // 只有共享才会添加到共享域中
+    if (shared) addListener(t, listener); // 只有共享才会添加到共享域中
     return listener;
   }
 
   void addListener(Type t, NopListener listener) {
     t = getAlias(t);
-    assert(!_pointers.containsKey(t));
+    assert(!_pointers.containsKey(t), t);
     _pointers[t] = listener;
   }
 
@@ -132,23 +135,67 @@ mixin GetTypePointers {
 
   static NopListener Function(dynamic data) nopListenerCreater = _defaultCreate;
   static NopListener _defaultCreate(dynamic data) => NopListenerDefault(data);
+  static GetTypePointers? _globalDependences;
+  static GetTypePointers globalDependences =
+      _globalDependences ??= NopDependencies();
 
-  static NopListener createArg(Type t, BuildContext context) {
-    final factory = _get(t);
+  static clear() {
+    final dep = _globalDependences;
+    _globalDependences = null;
+    if (dep is NopDependencies) {
+      dep.removeCurrent();
+    }
+  }
 
-    final data = factory.map(
-      left: (left) => left(),
-      right: (right) => right(context),
-    );
-
-    if (data is NopLifeCycle) {
-      try {
-        data.init();
-      } catch (e, s) {
-        Log.e('$t init error: $e\n$s', onlyDebug: false);
+  static NopListener defaultGetNopListener(Type t, GetTypePointers? current,
+      {bool shared = true}) {
+    NopListener? listener;
+    if (shared) {
+      listener = current?.findCurrentTypeArg(t);
+      if (listener == null) {
+        listener = current?.findTypeArgOther(t);
+        // 全局查找
+        listener ??= globalDependences.findTypeArg(t);
+        if (listener != null) {
+          current?.addListener(t, listener);
+        }
       }
     }
-    return nopListenerCreater(data);
+
+    if (listener == null && current != null) {
+      // 页面创建
+      listener = current.createListenerArg(t, shared: shared);
+      assert(listener.shared == shared);
+    }
+    assert(listener != null ||
+        Log.w('Global Scope: create $t Object', position: 6));
+    return listener ?? globalDependences.getTypeArg(t);
+  }
+
+  static NopListener? defaultFindNopListener(Type t, GetTypePointers? current) {
+    var listener = current?.findCurrentTypeArg(t);
+    listener ??= current?.findTypeArgOther(t);
+    // 全局查找
+    listener ??= globalDependences.findTypeArg(t);
+    return listener;
+  }
+
+  static NopListener createUniqueListener(dynamic data) {
+    final listener = nopListenerCreater(data);
+    listener.scope = NopShareScope.unique;
+    return listener;
+  }
+
+  static NopListener createArg(Type t, {bool shared = true}) {
+    final factory = _get(t);
+    final data = factory();
+    final listener = nopListenerCreater(data);
+    if (shared) {
+      listener.scope = NopShareScope.shared;
+    } else {
+      listener.scope = NopShareScope.page;
+    }
+    return listener;
   }
 
   static Type Function(Type t) getAlias = Nav.getAlias;
@@ -159,89 +206,13 @@ mixin GetTypePointers {
 
   static _Factory get _get {
     if (_factory != null) return _factory!;
-    assert(Log.w('使用构建器，只初始化一次'));
+    assert(Log.w('init once.'));
     return _factory ??= getFactory;
   }
 
-  static NopListener create<T>(BuildContext context) {
-    return createArg(T, context);
+  static NopListener create<T>({bool shared = true}) {
+    return createArg(T, shared: shared);
   }
 }
 
-typedef _Factory<T> = Either<BuildFactory<T>, BuildContextFactory<T>> Function(
-    Type t);
-mixin NopLifeCycle {
-  void init();
-  void nopDispose();
-
-  static void autoDispse(Object lifeCycle) {
-    assert(Log.w('dispose: ${lifeCycle.runtimeType}'));
-    if (lifeCycle is NopLifeCycle) {
-      lifeCycle.nopDispose();
-    } else if (lifeCycle is ChangeNotifier) {
-      lifeCycle.dispose();
-    }
-  }
-}
-
-mixin NopListenerUpdate {
-  void update();
-}
-
-abstract class NopListener {
-  NopListener(this.data);
-  final dynamic data;
-  bool get isEmpty;
-
-  void remove(Object key);
-
-  void add(Object key);
-}
-
-class NopListenerDefault extends NopListener {
-  NopListenerDefault(dynamic data) : super(data);
-  final Set<Object> _listener = {};
-
-  @override
-  bool get isEmpty => _listener.isEmpty;
-
-  bool _secheduled = false;
-
-  bool _dispose = false;
-
-  @override
-  void remove(Object key) {
-    assert(!_dispose);
-    assert(_listener.contains(key));
-    _listener.remove(key);
-
-    final local = data;
-    if (local is Listenable && key is NopListenerUpdate) {
-      local.removeListener(key.update);
-    }
-
-    if (isEmpty) {
-      if (_secheduled) return;
-      scheduleMicrotask(() {
-        _secheduled = false;
-        if (isEmpty) {
-          _dispose = true;
-          NopLifeCycle.autoDispse(data);
-        }
-      });
-      _secheduled = true;
-    }
-  }
-
-  @override
-  void add(Object key) {
-    assert(!_dispose);
-    assert(!_listener.contains(key));
-
-    _listener.add(key);
-    final local = data;
-    if (local is Listenable && key is NopListenerUpdate) {
-      local.addListener(key.update);
-    }
-  }
-}
+typedef _Factory<T> = BuildFactory<T> Function(Type t);
