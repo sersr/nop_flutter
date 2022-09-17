@@ -28,11 +28,19 @@ mixin OverlayClose on OverlayMixin {
     super.onCompleted();
     final hold = stay;
     if (hold != null) {
-      EventQueue.runOne(this, () => release(hold).whenComplete(hide));
+      EventQueue.runOne(this, () => release(hold).whenComplete(hideOrClose));
     }
   }
 
   bool get closeOndismissed => true;
+
+  void hideOrClose() {
+    if (!mounted) {
+      close();
+      return;
+    }
+    hide();
+  }
 
   @override
   void onDismissed() {
@@ -76,6 +84,22 @@ mixin OverlayShowOnly on OverlayMixin {
   }
 }
 
+class OverlayDisposeEntry extends OverlayEntry {
+  OverlayDisposeEntry({
+    required WidgetBuilder builder,
+    bool opaque = false,
+    bool maintainState = false,
+    required this.overlayMixin,
+  }) : super(builder: builder, opaque: opaque, maintainState: maintainState);
+  final OverlayMixin overlayMixin;
+
+  @override
+  void dispose() {
+    overlayMixin.close();
+    super.dispose();
+  }
+}
+
 class OverlayPannelBuilder
     with
         OverlayMixin,
@@ -90,7 +114,8 @@ class OverlayPannelBuilder
     bool? closeOndismissed,
     this.showKey,
   }) : closeOnDissmissed = closeOndismissed ?? false {
-    addEntry(OverlayEntry(
+    addEntry(OverlayDisposeEntry(
+        overlayMixin: this,
         builder: (context) => builder(context, _userGestureController)));
   }
   late final _userGestureController = UserGestureController(owner: this);
@@ -274,7 +299,7 @@ class OverlaySideGesture extends StatelessWidget {
   }
 }
 
-enum Position {
+enum NopOverlayPosition {
   none,
   top,
   right,
@@ -291,7 +316,7 @@ class OverlayWidget extends StatelessWidget {
     this.radius,
     this.useMaterial = true,
     this.removeAll = true,
-    this.position = Position.none,
+    this.position = NopOverlayPosition.none,
     this.margin,
   }) : super(key: key);
 
@@ -301,14 +326,14 @@ class OverlayWidget extends StatelessWidget {
   final Color? color;
   final BorderRadius? radius;
   final bool removeAll;
-  final Position position;
+  final NopOverlayPosition position;
   final GlobalKey sizeKey;
   final EdgeInsets? margin;
 
-  bool get isTop => position == Position.top;
-  bool get isBottom => position == Position.bottom;
-  bool get isLeft => position == Position.left;
-  bool get isRight => position == Position.right;
+  bool get isTop => position == NopOverlayPosition.top;
+  bool get isBottom => position == NopOverlayPosition.bottom;
+  bool get isLeft => position == NopOverlayPosition.left;
+  bool get isRight => position == NopOverlayPosition.right;
   bool get isHorizontal => isLeft || isRight;
 
   @override

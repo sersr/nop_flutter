@@ -60,8 +60,12 @@ class NavRePushNamedAction extends NavAction with NaviActionResult<String> {
   final Object? arguments;
   @override
   void action(NavigatorState state) {
-    final id = state.restorablePushNamed(routeName, arguments: arguments);
-    complete(id);
+    try {
+      final id = state.restorablePushNamed(routeName, arguments: arguments);
+      complete(id);
+    } catch (_) {
+      completeError();
+    }
   }
 }
 
@@ -73,9 +77,13 @@ class NavRePopPushNamedAction<R> extends NavAction
   final R? popResult;
   @override
   void action(NavigatorState state) {
-    final id = state.restorablePopAndPushNamed(routeName,
-        result: popResult, arguments: arguments);
-    complete(id);
+    try {
+      final id = state.restorablePopAndPushNamed(routeName,
+          result: popResult, arguments: arguments);
+      complete(id);
+    } catch (_) {
+      completeError();
+    }
   }
 }
 
@@ -87,9 +95,13 @@ class NavRePushNamedUntilAction extends NavAction
   final bool Function(Route<dynamic>) predicate;
   @override
   void action(NavigatorState state) {
-    final id = state.restorablePushNamedAndRemoveUntil(routeName, predicate,
-        arguments: arguments);
-    complete(id);
+    try {
+      final id = state.restorablePushNamedAndRemoveUntil(routeName, predicate,
+          arguments: arguments);
+      complete(id);
+    } catch (_) {
+      completeError();
+    }
   }
 }
 
@@ -101,9 +113,13 @@ class NavRePushNamedReplaceAction<R> extends NavAction
   final R? popResult;
   @override
   void action(NavigatorState state) {
-    final id = state.restorablePushReplacementNamed(routeName,
-        result: popResult, arguments: arguments);
-    complete(id);
+    try {
+      final id = state.restorablePushReplacementNamed(routeName,
+          result: popResult, arguments: arguments);
+      complete(id);
+    } catch (_) {
+      completeError();
+    }
   }
 }
 
@@ -205,11 +221,15 @@ class NavRestorableReplaceAction<T> extends NavAction
   final Object? arguments;
   @override
   void action(NavigatorState state) {
-    final result = state.restorableReplace(
-        oldRoute: oldRoute,
-        newRouteBuilder: newRouteBuilder,
-        arguments: arguments);
-    complete(result);
+    try {
+      final result = state.restorableReplace(
+          oldRoute: oldRoute,
+          newRouteBuilder: newRouteBuilder,
+          arguments: arguments);
+      complete(result);
+    } catch (_) {
+      completeError();
+    }
   }
 }
 

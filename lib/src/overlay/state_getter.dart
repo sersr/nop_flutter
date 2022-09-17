@@ -6,8 +6,7 @@ import 'package:nop/event_queue.dart';
 import 'package:nop/utils.dart';
 
 Future<void> waitForFrame() {
-  return SchedulerBinding.instance?.endOfFrame ??
-      release(const Duration(milliseconds: 16));
+  return SchedulerBinding.instance.endOfFrame;
 }
 
 /// 异步

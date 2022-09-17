@@ -7,12 +7,7 @@ import 'package:nop/nop.dart';
 
 import 'navigator_getter.dart';
 
-class NavigatorBase {
-  NavigatorBase(this.getNavigator);
-  NavigatorState? Function() getNavigator;
-
-  NavigatorState? get currentState => getNavigator();
-}
+typedef BuildFactory<T> = T Function();
 
 abstract class NavInterface {}
 
@@ -23,6 +18,11 @@ class NavGlobal extends NavInterface {
 
   final NavObserver observer = NavObserver();
 
+  Route? get currentRoute => observer._currentRoute;
+  String? get currentRouteName => observer._currentRoute?.settings.name;
+  dynamic get currentRouteArguments =>
+      observer._currentRoute?.settings.arguments;
+
   OverlayState? getOverlay() {
     return observer.overlay;
   }
@@ -31,28 +31,19 @@ class NavGlobal extends NavInterface {
     return observer.navigator;
   }
 
-  final _factorys = HashMap<Type, Either<BuildFactory, BuildContextFactory>>();
-
-  void putFactory<T>(Either<BuildFactory<T>, BuildContextFactory<T>> factory) {
+  final _factorys = HashMap<Type, BuildFactory>();
+  void put<T>(BuildFactory<T> factory) {
     _factorys[T] = factory;
   }
 
-  void put<T>(BuildFactory<T> factory) {
-    _factorys[T] = Left<BuildFactory<T>, BuildContextFactory<T>>(factory);
+  BuildFactory<T> get<T>() {
+    assert(_factorys.containsKey(T), 'You need to call Nav.put<$T>()');
+    return _factorys[T] as BuildFactory<T>;
   }
 
-  void putContext<T>(BuildContextFactory<T> factory) {
-    _factorys[T] = Right<BuildFactory<T>, BuildContextFactory<T>>(factory);
-  }
-
-  Either<BuildFactory<T>, BuildContextFactory<T>> get<T>() {
-    assert(_factorys.containsKey(T), '请先使用 Nav.put<$T>()');
-    return _factorys[T] as Either<BuildFactory<T>, BuildContextFactory<T>>;
-  }
-
-  Either<BuildFactory, BuildContextFactory> getArg(Type t) {
-    assert(_factorys.containsKey(t), '请先使用 Nav.put<$t>()');
-    return _factorys[t] as Either<BuildFactory, BuildContextFactory>;
+  BuildFactory getArg(Type t) {
+    assert(_factorys.containsKey(t), 'You need to call Nav.put<$t>()');
+    return _factorys[t] as BuildFactory;
   }
 
   final _alias = <Type, Type>{};
@@ -80,46 +71,56 @@ class NavGlobal extends NavInterface {
 class NavObserver extends NavigatorObserver {
   OverlayState? get overlay => navigator?.overlay;
 
+  Route? _currentRoute;
+  Route? get currentRoute => _currentRoute;
+  String? get currentRouteName => _currentRoute?.settings.name;
+  dynamic get currentRouteArguments => _currentRoute?.settings.arguments;
+
   @override
   void didPop(Route route, Route? previousRoute) {
+    _currentRoute = previousRoute;
     assert(Log.i('${route.settings.name}'));
   }
 
   @override
   void didPush(Route route, Route? previousRoute) {
+    _currentRoute = route;
     assert(Log.i('${route.settings.name}'));
   }
 
   @override
   void didRemove(Route route, Route? previousRoute) {
+    _currentRoute = previousRoute;
     assert(Log.i('${route.settings.name}'));
   }
 
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
+    _currentRoute = newRoute;
     assert(Log.i('${newRoute?.settings.name}  ${oldRoute?.settings.name}'));
   }
 }
-
-typedef BuildFactory<T> = T Function();
-typedef BuildContextFactory<T> = T Function(BuildContext context);
 
 // ignore: non_constant_identifier_names
 final Nav = NavGlobal();
 
 extension NavigatorExt on NavInterface {
-  Future<T?> push<T extends Object?>(Route<T> route) {
+  Future<T?> push<T extends Object?>(
+    Route<T> route, {
+    NavigatorStateGetter? navigatorStateGetter,
+  }) {
     final push = NavPushAction(route);
-    _navDelegate(push);
+    _navDelegate(push, navigatorStateGetter);
     return push.result;
   }
 
   Future<T?> pushNamed<T extends Object?>(
     String routeName, {
     Object? arguments,
+    NavigatorStateGetter? navigatorStateGetter,
   }) {
     final action = NavPushNamedAction<T>(routeName, arguments);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
@@ -127,9 +128,10 @@ extension NavigatorExt on NavInterface {
     String routeName,
     bool Function(Route<dynamic>) predicate, {
     Object? arguments,
+    NavigatorStateGetter? navigatorStateGetter,
   }) {
     final action = NavPushReplaceUntil<T>(routeName, predicate, arguments);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
@@ -137,10 +139,11 @@ extension NavigatorExt on NavInterface {
     String routeName, {
     R? result,
     Object? arguments,
+    NavigatorStateGetter? navigatorStateGetter,
   }) {
     final action =
         NavPushReplacementNamedAction<T, R>(routeName, arguments, result);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
@@ -148,56 +151,77 @@ extension NavigatorExt on NavInterface {
     String routeName, {
     R? result,
     Object? arguments,
+    NavigatorStateGetter? navigatorStateGetter,
   }) {
     final action = NavPopAndPushNamedAction<T, R>(routeName, arguments, result);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
   Future<T?> pushReplacement<T extends Object?, TO extends Object?>(
-      Route<T> newRoute,
-      {TO? result}) {
+    Route<T> newRoute, {
+    TO? result,
+    NavigatorStateGetter? navigatorStateGetter,
+  }) {
     final action = NavPushReplacementdAction(newRoute, result);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
-  void pop<T extends Object?>([T? result]) {
+  void pop<T extends Object?>([
+    T? result,
+    NavigatorStateGetter? navigatorStateGetter,
+  ]) {
     final pop = NavPopAction(result);
-    _navDelegate(pop);
+    _navDelegate(pop, navigatorStateGetter);
   }
 
-  Future<bool?> maybePop<T extends Object?>([T? result]) {
+  Future<bool?> maybePop<T extends Object?>([
+    T? result,
+    NavigatorStateGetter? navigatorStateGetter,
+  ]) {
     final pop = NavMaybePopAction(result);
-    _navDelegate(pop);
+    _navDelegate(pop, navigatorStateGetter);
     return pop.result;
   }
 
-  void replace<T extends Object?>(
-      {required Route<dynamic> oldRoute, required Route<T> newRoute}) {
+  void replace<T extends Object?>({
+    required Route<dynamic> oldRoute,
+    required Route<T> newRoute,
+    NavigatorStateGetter? navigatorStateGetter,
+  }) {
     final replace = NavReplaceAction(oldRoute, newRoute);
-    _navDelegate(replace);
+    _navDelegate(replace, navigatorStateGetter);
   }
 
-  Future<String?> restorableReplace<T extends Object?>(
-      {required Route<dynamic> oldRoute,
-      required RestorableRouteBuilder<T> newRouteBuilder,
-      Object? arguments}) {
+  Future<String?> restorableReplace<T extends Object?>({
+    required Route<dynamic> oldRoute,
+    required RestorableRouteBuilder<T> newRouteBuilder,
+    Object? arguments,
+    NavigatorStateGetter? navigatorStateGetter,
+  }) {
     final action =
         NavRestorableReplaceAction(oldRoute, newRouteBuilder, arguments);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
-  void replaceRouteBelow<T extends Object?>(
-      {required Route<dynamic> anchorRoute, required Route<T> newRoute}) {
+  void replaceRouteBelow<T extends Object?>({
+    required Route<dynamic> anchorRoute,
+    required Route<T> newRoute,
+    NavigatorStateGetter? navigatorStateGetter,
+  }) {
     final action = NavReplaceBelowAction(anchorRoute, newRoute);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
   }
 
-  Future<String?> restorablePushNamed(String routeName, {Object? arguments}) {
+  Future<String?> restorablePushNamed(
+    String routeName, {
+    Object? arguments,
+    NavigatorStateGetter? navigatorStateGetter,
+  }) {
     final action = NavRePushNamedAction(routeName, arguments);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
@@ -205,9 +229,10 @@ extension NavigatorExt on NavInterface {
     String routeName, {
     Object? arguments,
     T? result,
+    NavigatorStateGetter? navigatorStateGetter,
   }) {
     final action = NavRePopPushNamedAction(routeName, arguments, result);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
@@ -215,9 +240,10 @@ extension NavigatorExt on NavInterface {
     String routeName,
     bool Function(Route<dynamic>) predicate, {
     Object? arguments,
+    NavigatorStateGetter? navigatorStateGetter,
   }) {
     final action = NavRePushNamedUntilAction(routeName, arguments, predicate);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 
@@ -225,13 +251,19 @@ extension NavigatorExt on NavInterface {
     String routeName, {
     T? result,
     Object? arguments,
+    NavigatorStateGetter? navigatorStateGetter,
   }) {
     final action = NavRePushNamedReplaceAction(routeName, arguments, result);
-    _navDelegate(action);
+    _navDelegate(action, navigatorStateGetter);
     return action.result;
   }
 }
 
-void _navDelegate(NavAction action) {
-  NavigatorDelegate(action).init();
+typedef NavigatorStateGetter = NavigatorState? Function();
+
+void _navDelegate(
+    NavAction action, NavigatorStateGetter? navigatorStateGetter) {
+  NavigatorDelegate(action)
+    ..navigatorStateGetter = navigatorStateGetter
+    ..init();
 }

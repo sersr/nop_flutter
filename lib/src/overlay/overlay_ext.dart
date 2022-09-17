@@ -22,6 +22,7 @@ extension OverlayExt on NavInterface {
     Duration delayDuration = Duration.zero,
     bool? closeOndismissed,
     Color? color,
+    bool autoShow = true,
   }) =>
       showOverlay(
         content,
@@ -31,7 +32,8 @@ extension OverlayExt on NavInterface {
         delayDuration: delayDuration,
         color: color,
         closeOndismissed: closeOndismissed,
-        position: Position.bottom,
+        autoShow: autoShow,
+        position: NopOverlayPosition.bottom,
       );
 
   BannerDelegate banner(
@@ -40,6 +42,7 @@ extension OverlayExt on NavInterface {
     Duration animationDuration = const Duration(milliseconds: 300),
     Duration delayDuration = Duration.zero,
     Color? color,
+    bool autoShow = true,
     BorderRadius? radius = const BorderRadius.all(Radius.circular(8)),
   }) {
     return showOverlay(
@@ -54,7 +57,8 @@ extension OverlayExt on NavInterface {
       delayDuration: delayDuration,
       radius: radius,
       color: color,
-      position: Position.top,
+      autoShow: autoShow,
+      position: NopOverlayPosition.top,
     );
   }
 
@@ -67,6 +71,7 @@ extension OverlayExt on NavInterface {
     double bottomPadding = 80.0,
     EdgeInsets? padding,
     bool? closeOndismissed,
+    bool autoShow = true,
   }) {
     return showOverlay(
       Container(padding: padding, child: content),
@@ -75,6 +80,7 @@ extension OverlayExt on NavInterface {
       radius: radius,
       color: color,
       top: null,
+      autoShow: autoShow,
       bottom: bottomPadding,
       onTap: (owner) {
         owner.hide();
@@ -153,22 +159,22 @@ extension Content on BuildContext {
   }
 }
 
-Tween<Offset>? _getOffsetFrom(Position position) {
+Tween<Offset>? _getOffsetFrom(NopOverlayPosition position) {
   Tween<Offset>? offset;
   switch (position) {
-    case Position.top:
+    case NopOverlayPosition.top:
       offset =
           Tween(begin: const Offset(0.0, -1.0), end: const Offset(0.0, 0.0));
       break;
-    case Position.left:
+    case NopOverlayPosition.left:
       offset =
           Tween(begin: const Offset(-1.0, 0.0), end: const Offset(0.0, 0.0));
       break;
-    case Position.bottom:
+    case NopOverlayPosition.bottom:
       offset =
           Tween(begin: const Offset(0.0, 1.0), end: const Offset(0.0, 0.0));
       break;
-    case Position.right:
+    case NopOverlayPosition.right:
       offset =
           Tween(begin: const Offset(1.0, 0.0), end: const Offset(0.0, 0.0));
       break;
@@ -191,8 +197,9 @@ OverlayMixinDelegate showOverlay(
   double? top = 0,
   double? bottom = 0,
   EdgeInsets? margin,
-  Position position = Position.none,
+  NopOverlayPosition position = NopOverlayPosition.none,
   Object? showKey,
+  bool autoShow = true,
   void Function(OverlayMixin owner)? onTap,
   Widget Function(BuildContext context, Widget child)? builder,
   Widget Function(
@@ -245,10 +252,10 @@ OverlayMixinDelegate showOverlay(
       return OverlaySideGesture(
         sizeKey: key,
         entry: self,
-        top: position == Position.bottom ? null : top,
-        left: position == Position.right ? null : left,
-        right: position == Position.left ? null : right,
-        bottom: position == Position.top ? null : bottom,
+        top: position == NopOverlayPosition.bottom ? null : top,
+        left: position == NopOverlayPosition.right ? null : left,
+        right: position == NopOverlayPosition.left ? null : right,
+        bottom: position == NopOverlayPosition.top ? null : bottom,
         transition: localTransition,
         onTap: _onTap,
         builder: (context) {
@@ -270,7 +277,8 @@ OverlayMixinDelegate showOverlay(
     },
   );
 
-  return OverlayMixinDelegate(controller, animationDuration,
-      delayDuration: delayDuration)
-    ..show();
+  final overlay = OverlayMixinDelegate(controller, animationDuration,
+      delayDuration: delayDuration);
+  if (autoShow) overlay.show();
+  return overlay;
 }
