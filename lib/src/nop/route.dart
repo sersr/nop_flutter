@@ -250,10 +250,11 @@ class NopRoute {
       final route = _onMatch(child, settings, pathName, query);
       if (route != null) return route;
     }
+    return null;
 
-    return NopRouteBuilder(
-        route: current,
-        settings: settings.copyWith(name: pathName, arguments: query));
+    // return NopRouteBuilder(
+    //     route: current,
+    //     settings: settings.copyWith(name: pathName, arguments: query));
   }
 }
 
